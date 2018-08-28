@@ -141,7 +141,7 @@ func resourceAviatrixGateway() *schema.Resource {
 			},
 			"lb_name": {
 				Type:     schema.TypeString,
-				Optional: true,
+				Computed: true,
 			},
 		},
 	}

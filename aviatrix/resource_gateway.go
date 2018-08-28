@@ -246,7 +246,7 @@ func resourceAviatrixGatewayRead(d *schema.ResourceData, meta interface{}) error
 	if gw != nil {
 		d.Set("vpc_size", gw.VpcSize)
 		d.Set("public_ip", gw.PublicIP)
-		d.Set("lb_name", gw.LbName)
+		d.Set("lb_name", gw.Elb.LbName)
 	}
 	return nil
 }

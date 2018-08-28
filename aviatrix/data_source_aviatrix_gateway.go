@@ -61,7 +61,7 @@ func dataSourceAviatrixGatewayRead(d *schema.ResourceData, meta interface{}) err
 		d.Set("vpc_reg", gw.VpcRegion)
 		d.Set("vpc_size", gw.VpcSize)
 		d.Set("vpc_net", gw.VpcNet)
-		d.Set("lb_name", gw.LbName)
+		d.Set("lb_name", gw.Elb.LbName)
 	}
 	return nil
 }

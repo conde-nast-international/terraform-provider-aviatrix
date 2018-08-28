@@ -240,8 +240,9 @@ func resourceAviatrixGatewayRead(d *schema.ResourceData, meta interface{}) error
 	}
 	log.Printf("[TRACE] reading gateway %s: %#v", d.Get("gw_name").(string), gw)
 	if gw != nil {
-		d.Set("vpc_size", gw.VpcSize)
+		d.Set("vpc_size", gw.VpcSize))
 		d.Set("public_ip", gw.PublicIP)
+		d.Set("lb_name", gw.LbName.(string))
 	}
 	return nil
 }

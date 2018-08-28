@@ -31,6 +31,7 @@ type Gateway struct {
 	DuoPushMode             string `form:"duo_push_mode,omitempty"`
 	DuoSecretKey            string `form:"duo_secret_key,omitempty"`
 	ElbDNSName              string `form:"elb_dns_name,omitempty" json:"elb_dns_name,omitempty"`
+	LbName                  string `form:"lb_name,omitempty" json:"lb_name,omitempty"`
 	ElbName                 string `form:"elb_name,omitempty"`
 	ElbState                string `form:"elb_state,omitempty" json:"elb_state,omitempty"`
 	EnableClientCertSharing string `form:"enable_client_cert_sharing,omitempty"`

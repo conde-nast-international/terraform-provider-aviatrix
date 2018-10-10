@@ -139,6 +139,10 @@ func resourceAviatrixGateway() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
+			"tags": {
+				Type:     schema.TypeMap,
+				Optional: true,
+			},
 			"elb_dns_name": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -180,6 +184,7 @@ func resourceAviatrixGatewayCreate(d *schema.ResourceData, meta interface{}) err
 		HASubnet:           d.Get("ha_subnet").(string),
 		PeeringHASubnet:    d.Get("public_subnet").(string),
 		NewZone:            d.Get("zone").(string),
+		Tags:               d.Get("tags").(map[string]interface{}),
 	}
 
 	log.Printf("[INFO] Creating Aviatrix gateway: %#v", gateway)
@@ -247,6 +252,7 @@ func resourceAviatrixGatewayRead(d *schema.ResourceData, meta interface{}) error
 		d.Set("vpc_size", gw.VpcSize)
 		d.Set("public_ip", gw.PublicIP)
 		d.Set("elb_dns_name", gw.ElbDNSName)
+		d.Set("tags", gw.Tags)
 	}
 	return nil
 }
@@ -256,6 +262,7 @@ func resourceAviatrixGatewayUpdate(d *schema.ResourceData, meta interface{}) err
 	gateway := &goaviatrix.Gateway{
 		GwName: d.Get("gw_name").(string),
 		GwSize: d.Get("vpc_size").(string),
+		Tags:   d.Get("tags").(map[string]interface{}),
 	}
 
 	log.Printf("[INFO] Updating Aviatrix gateway: %#v", gateway)

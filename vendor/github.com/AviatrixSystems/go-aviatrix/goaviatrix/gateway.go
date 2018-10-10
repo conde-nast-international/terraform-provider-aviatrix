@@ -1,10 +1,12 @@
 package goaviatrix
 
 import (
+	"bytes"
 	"fmt"
 	"encoding/json"
 	"errors"
 	"log"
+	"strings"
 )
 
 type Elb struct {
@@ -84,6 +86,7 @@ type Gateway struct {
 	SaveTemplate            string `form:"save_template,omitempty"`
 	SearchDomains           string `form:"search_domains,omitempty"`
 	SplitTunnel             string `form:"split_tunnel,omitempty" json:"split_tunnel,omitempty"`
+	Tags                    map[string]interface{} `form:"new_tag_list"`
 	TunnelName              string `form:"tunnel_name,omitempty" json:"tunnel_name,omitempty"`
 	TunnelType              string `form:"tunnel_type,omitempty" json:"tunnel_type,omitempty"`
 	VendorName              string `form:"vendor_name,omitempty" json:"vendor_name,omitempty"`
@@ -206,8 +209,10 @@ func (c *Client) GetGateway(gateway *Gateway) (*Gateway, error) {
 	}
 	gwlist:= data.Results
 	for i := range gwlist {
-	        //log.Printf("DEBUG  %s", gwlist[i].GwName)
+		log.Printf("DEBUG Aviatrix %s", gwlist[i].GwName)
 		if gwlist[i].GwName == gateway.GwName {
+			gwlist[i].Tags, _ = c.GetResourceTagsGateway(&gwlist[i])
+			log.Printf("DEBUG Aviatrix got tagged gateway %#v", gwlist[i])
 			return &gwlist[i], nil
 		}
 	}
@@ -216,9 +221,12 @@ func (c *Client) GetGateway(gateway *Gateway) (*Gateway, error) {
 }
 
 func (c *Client) UpdateGateway(gateway *Gateway) (error) {
-	gateway.CID=c.CID
-	gateway.Action="edit_gw_config"
-	resp,err := c.Post(c.baseURL, gateway)
+	var updateGateway Gateway
+	updateGateway.CID=c.CID
+	updateGateway.Action="edit_gw_config"
+	updateGateway.GwName=gateway.GwName
+	updateGateway.GwSize=gateway.GwSize
+	resp,err := c.Post(c.baseURL, updateGateway)
 		if err != nil {
 		return err
 	}
@@ -229,7 +237,9 @@ func (c *Client) UpdateGateway(gateway *Gateway) (error) {
 	if(!data.Return){
 		return errors.New(data.Reason)
 	}
-	return nil
+	var tagUpdate Gateway
+	tagUpdate.Tags = gateway.Tags
+	return c.UpdateResourceTagsGateway(gateway)
 }
 
 func (c *Client) DeleteGateway(gateway *Gateway) (error) {
@@ -244,6 +254,73 @@ func (c *Client) DeleteGateway(gateway *Gateway) (error) {
 		return err
 	}
 	if(!data.Return){
+		return errors.New(data.Reason)
+	}
+
+	return nil
+}
+
+type TagResults struct {
+	SystemTags       map[string]interface{} `json:"system_tags"`
+	SystemTagsBackup map[string]interface{} `json:"system_tags_backup"`
+	Tags             map[string]interface{} `json:"tags"`
+}
+
+type TagAPIResp struct {
+	Return  bool   `json:"return"`
+	Reason  string `json:"reason"`
+	Results TagResults `json:"results"`
+}
+
+func (c *Client) GetResourceTagsGateway(gateway *Gateway) (map[string]interface{}, error) {
+	log.Printf("DEBUG Aviatrix client tags output: %#v", c)
+	path := c.baseURL + fmt.Sprintf("?action=list_resource_tags&CID=%s&cloud_type=%d&resource_type=gw&resource_name=%s", c.CID, gateway.CloudType, gateway.GwName)
+	resp, err := c.Get(path, nil)
+
+	if err != nil {
+		log.Printf("DEBUG Aviatrix tag error %#v", err)
+		return nil, err
+	}
+	var data TagAPIResp
+	if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		log.Printf("DEBUG Aviatrix tag error %#v", err)
+		return nil, err
+	}
+	log.Printf("DEBUG Aviatrix tags output %#v", data)
+	if(!data.Return){
+		log.Printf("DEBUG Aviatrix %s", data.Reason)
+		return nil, errors.New(data.Reason)
+	}
+
+	log.Printf("DEBUG Aviatrix tags %#v", data.Results.Tags)
+
+	return data.Results.Tags, nil
+}
+
+func (c *Client) UpdateResourceTagsGateway(gateway *Gateway) (error) {
+	log.Printf("tagupdate DEBUG Aviatrix update tags")
+	b := new(bytes.Buffer)
+	for key, value := range gateway.Tags {
+		fmt.Fprintf(b, "%s:%s,", key, value)
+	}
+
+	tags := strings.TrimRight(b.String(), ",")
+	log.Printf("tagupdate DEBUG Aviatrix tags %s", tags)
+	path := c.baseURL + fmt.Sprintf("?action=update_resource_tags&cloud_type=%d&resource_type=gw&resource_name=%s&new_tag_list=%s", c.CID, gateway.CloudType, gateway.GwName, tags)
+	resp,err := c.Post(path, gateway)
+
+	if err != nil {
+		return err
+	}
+	var data APIResp
+	if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		log.Printf("tagupdate DEBUG >>>>>>>>>>>>> error %#v", resp.Body)
+		return err
+	}
+	log.Printf("tagupdate DEBUG >>>>>>>>>>>>> Aviatrix %#v", data)
+	if(!data.Return){
+		log.Printf("tagupdate DEBUG Aviatrix  %s", data.Return)
+		log.Printf("tagupdate DEBUG Aviatrix %s", data.Reason)
 		return errors.New(data.Reason)
 	}
 	return nil

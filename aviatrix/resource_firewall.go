@@ -2,9 +2,10 @@ package aviatrix
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/AviatrixSystems/go-aviatrix/goaviatrix"
 	"github.com/hashicorp/terraform/helper/schema"
-	"log"
 )
 
 func resourceAviatrixFirewall() *schema.Resource {
@@ -15,19 +16,19 @@ func resourceAviatrixFirewall() *schema.Resource {
 		Delete: resourceAviatrixFirewallDelete,
 
 		Schema: map[string]*schema.Schema{
-			"gw_name": &schema.Schema{
+			"gw_name": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
-			"base_allow_deny": &schema.Schema{
+			"base_allow_deny": {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
-			"base_log_enable": &schema.Schema{
+			"base_log_enable": {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
-			"policy": &schema.Schema{
+			"policy": {
 				Type:     schema.TypeList,
 				Optional: true,
 				Elem: &schema.Resource{
@@ -86,7 +87,7 @@ func resourceAviatrixFirewallCreate(d *schema.ResourceData, meta interface{}) er
 
 		err := client.SetBasePolicy(firewall)
 		if err != nil {
-			return fmt.Errorf("Failed to set base firewall policies for GW %s: %s", firewall.GwName, err)
+			return fmt.Errorf("failed to set base firewall policies for GW %s: %s", firewall.GwName, err)
 		}
 	}
 	//If policy list is present, update policy list
@@ -106,7 +107,7 @@ func resourceAviatrixFirewallCreate(d *schema.ResourceData, meta interface{}) er
 		}
 		err := client.UpdatePolicy(firewall)
 		if err != nil {
-			return fmt.Errorf("Failed to create Aviatrix Firewall: %s", err)
+			return fmt.Errorf("failed to create Aviatrix Firewall: %s", err)
 		}
 	}
 	d.SetId(firewall.GwName)
@@ -124,7 +125,7 @@ func resourceAviatrixFirewallRead(d *schema.ResourceData, meta interface{}) erro
 			d.SetId("")
 			return nil
 		}
-		return fmt.Errorf("Error fetching policy for gateway %s: %s", firewall.GwName, err)
+		return fmt.Errorf("error fetching policy for gateway %s: %s", firewall.GwName, err)
 	}
 	log.Printf("[TRACE] Reading policy for gateway %s: %#v",
 		firewall.GwName, fw)
@@ -180,11 +181,11 @@ func resourceAviatrixFirewallUpdate(d *schema.ResourceData, meta interface{}) er
 		firewall.PolicyList = make([]*goaviatrix.Policy, 0)
 		err := client.UpdatePolicy(firewall)
 		if err != nil {
-			return fmt.Errorf("Failed to create Aviatrix Firewall: %s", err)
+			return fmt.Errorf("failed to create Aviatrix Firewall: %s", err)
 		}
 		err = client.SetBasePolicy(firewall)
 		if err != nil {
-			return fmt.Errorf("Failed to set base firewall policies for GW %s: %s", firewall.GwName, err)
+			return fmt.Errorf("failed to set base firewall policies for GW %s: %s", firewall.GwName, err)
 		}
 		if d.HasChange("base_allow_deny") {
 			d.SetPartial("base_allow_deny")
@@ -210,7 +211,7 @@ func resourceAviatrixFirewallUpdate(d *schema.ResourceData, meta interface{}) er
 		}
 		err := client.UpdatePolicy(firewall)
 		if err != nil {
-			return fmt.Errorf("Failed to create Aviatrix Firewall: %s", err)
+			return fmt.Errorf("failed to create Aviatrix Firewall: %s", err)
 		}
 		d.SetPartial("policy")
 	}
@@ -226,7 +227,7 @@ func resourceAviatrixFirewallDelete(d *schema.ResourceData, meta interface{}) er
 	firewall.PolicyList = make([]*goaviatrix.Policy, 0)
 	err := client.UpdatePolicy(firewall)
 	if err != nil {
-		return fmt.Errorf("Failed to delete Aviatrix Firewall policy list: %s", err)
+		return fmt.Errorf("failed to delete Aviatrix Firewall policy list: %s", err)
 	}
 	//FIXME: Need to reset base policy rules and base logging too to
 	//allow-all and on(default values).

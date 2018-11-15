@@ -2,9 +2,11 @@ package aviatrix
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/AviatrixSystems/go-aviatrix/goaviatrix"
 	"github.com/hashicorp/terraform/helper/schema"
-	"log"
+	//"strings"
 )
 
 func resourceAviatrixFQDN() *schema.Resource {
@@ -15,27 +17,42 @@ func resourceAviatrixFQDN() *schema.Resource {
 		Delete: resourceAviatrixFQDNDelete,
 
 		Schema: map[string]*schema.Schema{
-			"fqdn_tag": &schema.Schema{
+			"fqdn_tag": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
-			"fqdn_status": &schema.Schema{
+			"fqdn_status": {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
-			"fqdn_mode": &schema.Schema{
+			"fqdn_mode": {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
-			"gw_list": &schema.Schema{
+			"gw_list": {
 				Type:     schema.TypeList,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 				Optional: true,
 			},
-			"domain_list": &schema.Schema{
+			"domain_names": {
 				Type:     schema.TypeList,
-				Elem:     &schema.Schema{Type: schema.TypeString},
 				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"fqdn": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"proto": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"port": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -51,35 +68,48 @@ func resourceAviatrixFQDNCreate(d *schema.ResourceData, meta interface{}) error 
 	log.Printf("[INFO] Creating Aviatrix FQDN: %#v", fqdn)
 	err := client.CreateFQDN(fqdn)
 	if err != nil {
-		return fmt.Errorf("Failed to create Aviatrix FQDN: %s", err)
+		return fmt.Errorf("failed to create Aviatrix FQDN: %s", err)
 	}
-	if _, ok := d.GetOk("domain_list"); ok {
-		fqdn.DomainList = goaviatrix.ExpandStringList(d.Get("domain_list").([]interface{}))
+	if _, ok := d.GetOk("domain_names"); ok {
+		names := d.Get("domain_names").([]interface{})
+		for _, domain := range names {
+			dn := domain.(map[string]interface{})
+			fqdnFilter := &goaviatrix.Filters{
+				FQDN:     dn["fqdn"].(string),
+				Protocol: dn["proto"].(string),
+				Port:     dn["port"].(string),
+			}
+			fqdn.DomainList = append(fqdn.DomainList, fqdnFilter)
+		}
 		err = client.UpdateDomains(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to add domain : %s", err)
+			return fmt.Errorf("failed to add domain : %s", err)
 		}
+		d.Set("domain_names", fqdn.DomainList)
 	}
 	if _, ok := d.GetOk("gw_list"); ok {
-		fqdn.GwList = goaviatrix.ExpandStringList(d.Get("gw_list").([]interface{}))
+		tagList := d.Get("gw_list").([]interface{})
+		tagListStr := goaviatrix.ExpandStringList(tagList)
+		fqdn.GwList = tagListStr
 		err = client.AttachGws(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to attach GWs: %s", err)
+			return fmt.Errorf("failed to attach GWs: %s", err)
 		}
+		d.Set("gw_list", fqdn.GwList)
 	}
-	if fqdn_status := d.Get("fqdn_status").(string); fqdn_status == "enabled" {
-		log.Printf("[INFO] Enable FQDN tag status: %#v", fqdn)
+	if fqdnStatus := d.Get("fqdn_status").(string); fqdnStatus == "enabled" {
+		log.Printf("[INOF] Enable FQDN tag status: %#v", fqdn)
 		err := client.UpdateFQDNStatus(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to update FQDN status : %s", err)
+			return fmt.Errorf("failed to update FQDN status : %s", err)
 		}
 	}
 	// update fqdn_mode when set to non-default "blacklist" mode
-	if fqdn_mode := d.Get("fqdn_mode").(string); fqdn_mode == "black" {
+	if fqdnMode := d.Get("fqdn_mode").(string); fqdnMode == "black" {
 		log.Printf("[INFO] Enable FQDN Mode: %#v", fqdn)
 		err := client.UpdateFQDNMode(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to update FQDN mode : %s", err)
+			return fmt.Errorf("failed to update FQDN mode : %s", err)
 		}
 	}
 	d.SetId(fqdn.FQDNTag)
@@ -93,6 +123,7 @@ func resourceAviatrixFQDNRead(d *schema.ResourceData, meta interface{}) error {
 		FQDNStatus: d.Get("fqdn_status").(string),
 		FQDNMode:   d.Get("fqdn_mode").(string),
 	}
+
 	log.Printf("[INFO] Reading Aviatrix FQDN: %#v", fqdn)
 	newfqdn, err := client.GetFQDNTag(fqdn)
 	if err != nil {
@@ -100,7 +131,7 @@ func resourceAviatrixFQDNRead(d *schema.ResourceData, meta interface{}) error {
 			d.SetId("")
 			return nil
 		}
-		return fmt.Errorf("Couldn't find FQDN tag: %s", err)
+		return fmt.Errorf("couldn't find FQDN tag: %s", err)
 	}
 	if newfqdn != nil {
 		if _, ok := d.GetOk("fqdn_status"); ok {
@@ -110,17 +141,33 @@ func resourceAviatrixFQDNRead(d *schema.ResourceData, meta interface{}) error {
 			d.Set("fqdn_mode", newfqdn.FQDNMode)
 		}
 	}
-
 	newfqdn, err = client.ListDomains(fqdn)
 	if err != nil {
-		return fmt.Errorf("Couldn't list FQDN domains: %s", err)
+		return fmt.Errorf("couldn't list FQDN domains: %s", err)
 	}
+	log.Printf("[INOF] 2Enable FQDN tag status: %#v", newfqdn)
+
 	if newfqdn != nil {
-		d.Set("domain_list", newfqdn.DomainList)
+		// This is nothing IF ListDomains return empty
+		var filter []map[string]interface{}
+		for _, fqdnDomain := range newfqdn.DomainList {
+			dn := make(map[string]interface{})
+			dn["fqdn"] = fqdnDomain.FQDN
+			dn["proto"] = fqdnDomain.Protocol
+			dn["port"] = fqdnDomain.Port
+			filter = append(filter, dn)
+		}
+
+		log.Printf("[INOF] 3Enable FQDN tag status: %#v", fqdn)
+
+		d.Set("domain_names", filter)
 	}
+	tagList := d.Get("gw_list").([]interface{})
+	tagListStr := goaviatrix.ExpandStringList(tagList)
+	fqdn.GwList = tagListStr
 	newfqdn, err = client.ListGws(fqdn)
 	if err != nil {
-		return fmt.Errorf("Couldn't list attached gateways: %s", err)
+		return fmt.Errorf("couldn't list attached gateways: %s", err)
 	}
 	if newfqdn != nil {
 		d.Set("gw_list", newfqdn.GwList)
@@ -139,27 +186,36 @@ func resourceAviatrixFQDNUpdate(d *schema.ResourceData, meta interface{}) error 
 	if d.HasChange("fqdn_status") {
 		err := client.UpdateFQDNStatus(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to update FQDN status : %s", err)
+			return fmt.Errorf("failed to update FQDN status : %s", err)
 		}
 		d.SetPartial("fqdn_status")
 	}
 	if d.HasChange("fqdn_mode") {
 		err := client.UpdateFQDNMode(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to update FQDN mode : %s", err)
+			return fmt.Errorf("failed to update FQDN mode : %s", err)
 		}
 		d.SetPartial("fqdn_mode")
 	}
 	//Update Domain list
-	if d.HasChange("domain_list") {
-		if _, ok := d.GetOk("domain_list"); ok {
-			fqdn.DomainList = goaviatrix.ExpandStringList(d.Get("domain_list").([]interface{}))
+	if d.HasChange("domain_names") {
+		if _, ok := d.GetOk("domain_names"); ok {
+			names := d.Get("domain_names").([]interface{})
+			for _, domain := range names {
+				dn := domain.(map[string]interface{})
+				fqdnDomain := &goaviatrix.Filters{
+					FQDN:     dn["fqdn"].(string),
+					Protocol: dn["proto"].(string),
+					Port:     dn["port"].(string),
+				}
+				fqdn.DomainList = append(fqdn.DomainList, fqdnDomain)
+			}
 		}
 		err := client.UpdateDomains(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to add domain : %s", err)
+			return fmt.Errorf("failed to add domain : %s", err)
 		}
-		d.SetPartial("domain_list")
+		d.SetPartial("domain_names")
 	}
 	//Update attached GW list
 	if d.HasChange("gw_list") {
@@ -180,7 +236,7 @@ func resourceAviatrixFQDNUpdate(d *schema.ResourceData, meta interface{}) error 
 		fqdn.GwList = toAddGws
 		err := client.AttachGws(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to add GW : %s", err)
+			return fmt.Errorf("failed to add GW : %s", err)
 		}
 		//Detach all the removed GWs
 		toDelGws := goaviatrix.Difference(oldGwList, newGwList)
@@ -188,7 +244,7 @@ func resourceAviatrixFQDNUpdate(d *schema.ResourceData, meta interface{}) error 
 		fqdn.GwList = toDelGws
 		err = client.DetachGws(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to add GW : %s", err)
+			return fmt.Errorf("failed to add GW : %s", err)
 		}
 		d.SetPartial("gw_list")
 	}
@@ -207,13 +263,12 @@ func resourceAviatrixFQDNDelete(d *schema.ResourceData, meta interface{}) error 
 		fqdn.GwList = goaviatrix.ExpandStringList(d.Get("gw_list").([]interface{}))
 		err := client.DetachGws(fqdn)
 		if err != nil {
-			return fmt.Errorf("Failed to detach GWs: %s", err)
+			return fmt.Errorf("failed to detach GWs: %s", err)
 		}
 	}
 	err := client.DeleteFQDN(fqdn)
 	if err != nil {
-		return fmt.Errorf("Failed to delete Aviatrix FQDN: %s", err)
+		return fmt.Errorf("failed to delete Aviatrix FQDN: %s", err)
 	}
-
 	return nil
 }

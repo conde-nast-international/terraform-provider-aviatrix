@@ -17,6 +17,7 @@ type Gateway struct {
 	Action                  string `form:"action,omitempty"`
 	AdditionalCidrs         string `form:"additional_cidrs,omitempty"`
 	AuthMethod              string `form:"auth_method,omitempty" json:"auth_method,omitempty"`
+	AllocateNewEip          string `form:"allocate_new_eip,omitempty" json:"allocate_new_eip,omitempty"`
 	BkupGatewayZone         string `form:"bkup_gateway_zone,omitempty" json:"bkup_gateway_zone,omitempty"`
 	BkupPrivateIP           string `form:"bkup_private_ip,omitempty" json:"bkup_private_ip,omitempty"`
 	CID                     string `form:"CID,omitempty"`
@@ -25,7 +26,7 @@ type Gateway struct {
 	ClientCertSharing       string `form:"client_cert_sharing,omitempty" json:"client_cert_sharing,omitempty"`
 	CloudType               int    `form:"cloud_type,omitempty" json:"cloud_type,omitempty"`
 	CloudnBkupGatewayInstID string `form:"cloudn_bkup_gateway_inst_id,omitempty" json:"cloudn_bkup_gateway_inst_id,omitempty"`
-	CloudnGatewayInstID     string `form:"cloudn_gateway_inst_id,omitempty"`
+	CloudnGatewayInstID     string `form:"cloudn_gateway_inst_id,omitempty" json:"cloudn_gateway_inst_id,omitempty"`
 	DirectInternet          string `form:"direct_internet,omitempty" json:"direct_internet,omitempty"`
 	DockerConsulIP          string `form:"docker_consul_ip,omitempty" json:"docker_consul_ip,omitempty"`
 	DockerNtwkCidr          string `form:"docker_ntwk_cidr,omitempty" json:"docker_ntwk_cidr,omitempty"`
@@ -34,6 +35,7 @@ type Gateway struct {
 	DuoIntegrationKey       string `form:"duo_integration_key,omitempty"`
 	DuoPushMode             string `form:"duo_push_mode,omitempty"`
 	DuoSecretKey            string `form:"duo_secret_key,omitempty"`
+	Eip                     string `form:"eip,omitempty" json:"eip,omitempty"`
 	ElbDNSName              string `form:"elb_dns_name,omitempty" json:"elb_dns_name,omitempty"`
 	Elb                     Elb    `json:"elb,omitempty"`
 	ElbName                 string `form:"elb_name,omitempty"`
@@ -42,7 +44,9 @@ type Gateway struct {
 	EnableElb               string `form:"enable_elb,omitempty"`
 	EnableLdap              string `form:"enable_ldap,omitempty"`
 	DnsServer               string `form:"dns_server,omitempty"`
+	PublicDnsServer         string `form:"public_dns_server,omitempty" json:"public_dns_server,omitempty"`
 	EnableNat               string `form:"enable_nat,omitempty" json:"enable_nat,omitempty"`
+	SingleAZ                string `form:"single_az_ha,omitempty"`
 	EnablePbr               string `form:"enable_pbr,omitempty"`
 	Expiration              string `form:"expiration,omitempty" json:"expiration,omitempty"`
 	GatewayZone             string `form:"gateway_zone,omitempty" json:"gateway_zone,omitempty"`
@@ -137,6 +141,22 @@ func (c *Client) EnableNatGateway(gateway *Gateway) (error) {
         }
         return nil
 }
+func (c *Client) EnableSingleAZGateway(gateway *Gateway) (error) {
+        gateway.CID=c.CID
+        gateway.Action="enable_single_az_ha"
+        resp,err := c.Post(c.baseURL, gateway)
+                if err != nil {
+                return err
+        }
+        var data APIResp
+        if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
+                return err
+        }
+        if(!data.Return){
+                return errors.New(data.Reason)
+        }
+        return nil
+}
 func (c *Client) EnablePeeringHaGateway(gateway *Gateway) (error) {
         gateway.CID=c.CID
         gateway.Action="create_peering_ha_gateway"
@@ -144,11 +164,6 @@ func (c *Client) EnablePeeringHaGateway(gateway *Gateway) (error) {
                 if err != nil {
                 return err
         }
-        //path := c.baseURL + fmt.Sprintf("?CID=%s&action=enable_vpc_ha&vpc_name=%s&specific_subnet=%s", c.CID, gateway.GwName, gateway.HASubnet)
-        //resp,err := c.Get(path, nil)
-        //        if err != nil {
-         //       return err
-        //}
         var data APIResp
         if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
                 return err
@@ -184,7 +199,7 @@ func (c *Client) DisableHaGateway(gateway *Gateway) (error) {
         if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
                 return err
         }
-        if(!data.Return){
+        if !data.Return {
                 return errors.New(data.Reason)
         }
         return nil
@@ -201,7 +216,7 @@ func (c *Client) GetGateway(gateway *Gateway) (*Gateway, error) {
 	if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, err
 	}
-	if(!data.Return){
+	if !data.Return {
 		return nil, errors.New(data.Reason)
 	}
 	gwlist:= data.Results

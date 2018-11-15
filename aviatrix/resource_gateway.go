@@ -160,12 +160,10 @@ func resourceAviatrixGateway() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
-<<<<<<< HEAD
 			"elb_dns_name": {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
-=======
 			"cloud_instance_id": {
 				Type:     schema.TypeString,
 				Computed: true,

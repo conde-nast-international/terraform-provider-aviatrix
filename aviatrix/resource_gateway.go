@@ -72,6 +72,10 @@ func resourceAviatrixGateway() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+			"nameservers": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
 			"vpn_access": {
 				Type:     schema.TypeString,
 				Optional: true,
@@ -220,6 +224,7 @@ func resourceAviatrixGatewayCreate(d *schema.ResourceData, meta interface{}) err
 		LdapPassword:       d.Get("ldap_password").(string),
 		LdapBaseDn:         d.Get("ldap_base_dn").(string),
 		LdapUserAttr:       d.Get("ldap_username_attribute").(string),
+		Nameservers:        d.Get("nameservers").(string),
 		HASubnet:           d.Get("ha_subnet").(string),
 		PeeringHASubnet:    d.Get("public_subnet").(string),
 		NewZone:            d.Get("zone").(string),
